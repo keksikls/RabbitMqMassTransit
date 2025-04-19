@@ -1,15 +1,46 @@
+using MassTransit;
+using RabbitMQMassTransit;
+using RabbitMQMassTransit.Consumer;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHostedService<RabbitBgWorker>();
+//настройка ребита с мас траситом
+builder.Services.AddMassTransit(x =>
+{
+    x.AddConsumer<NotifyTransactionConsumer>();
+    x.AddConsumer<CreateTransactionConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        //cfg.Host("rabbitmq://localhost", c =>
+        //{
+        //    c.Username("root");
+        //    c.Password("123");
+        //});
+
+        cfg.ReceiveEndpoint("NotifyTransactionsQueue", e =>
+        {
+            e.ConfigureConsumer<NotifyTransactionConsumer>(context);
+        });
+        cfg.ReceiveEndpoint("CreateTransactionsQueue", e =>
+        {
+            e.ConfigureConsumer<CreateTransactionConsumer>(context);
+        });
+
+       // это параметры их куча
+        cfg.ClearSerialization();
+        cfg.UseRawJsonSerializer();
+        cfg.ConfigureEndpoints(context);
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -17,9 +48,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
